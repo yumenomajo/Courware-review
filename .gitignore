@@ -1,0 +1,9 @@
+# Intermediate PDF rendering outputs
+*.png
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code state
+.omc/
