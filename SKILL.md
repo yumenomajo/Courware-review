@@ -1,7 +1,7 @@
 ---
 name: courseware-review-beta
 description: 'Experimental beta of courseware-review with full optimizations: tail-read via APPEND_HERE anchor, three-terminal-state interaction (A/B/C), model-aware image budgets, XL path for large PDFs (>80p), Phase 0 quick estimate, /pdf skill as Windows-first fallback, MODULE_SUMMARY schema, self-check with evidence commands, and **no length cap on mathematical derivations** (R11). Use for deep exam review from slides/lectures/textbook PDFs. Triggers: "复习这份讲义", "讲解这份课件", "考试复习", "review this courseware", "exam review from PDF".'
-allowed-tools: Bash(pdftoppm:*), Bash(pdfinfo:*), Bash(python:*), Bash(py:*), Bash(file:*), Bash(wc:*), Bash(ls:*), Bash(mkdir:*), Bash(rm:*), Read, Write, Edit, Grep, Glob, Skill
+allowed-tools: Bash(pdftoppm:*), Bash(pdfinfo:*), Bash(python:*), Bash(py:*), Bash(file:*), Bash(wc:*), Bash(ls:*), Bash(mkdir:*), Read, Write, Edit, Grep, Glob, Skill
 ---
 
 # Courseware Review Skill (Beta — Full Optimization)
@@ -30,14 +30,14 @@ allowed-tools: Bash(pdftoppm:*), Bash(pdfinfo:*), Bash(python:*), Bash(py:*), Ba
 | **R2** | **记号锁定**：只用 PDF 原文的记号（变量名、希腊字母、函数名）。不做等价替换。图像分辨率不足难辨时标 `[原文]?` 并问用户确认，不猜。 | 🔴 |
 | **R3** | **视觉优先**（slides）：Phase 2 讲解必须先看渲染后的 PNG，图表/公式/示意图为主要内容源。文字提取仅辅助。 | 🔴 |
 | **R4** | **单文件单目录**：所有输出（md + PNG）放在同一个文件夹。图像用相对路径引用。Phase 1 第一步 `mkdir -p` 确保目录存在。 | 🟡 |
-| **R5** | **图像嵌入仅限 diagram**：公式用 LaTeX，表格用 Markdown。仅嵌入"无法用文字表达的关键示意图/架构图"。每模块 0–2 张。文件命名 `mod{N}_fig{i}.png`，相对路径引用，从 pdftoppm 产物直接挑选不做裁剪。 | 🟡 |
+| **R5** | **关键 diagram 必须嵌入**：公式用 LaTeX，表格用 Markdown。**架构图、流程图、数据流向图、可视化示意图等"文字无法等价替代"的图必须嵌入**——不设每模块上限，按需嵌入所有关键图，仅受 R8 流控约束（超配额则分批）。文件命名 `mod{N}_fig{i}.png`，相对路径引用，从 pdftoppm 产物直接挑选不做裁剪。**R5 嵌入优先级 > R8 保守倾向**——带宽不够就分批，不能用文字替代关键架构图。 | 🟡 |
 | **R6** | **LaTeX `\|` 转义**：所有 `$...$`/`$$...$$` 内的竖线写成 `\|`（绝对值、范数、条件概率、条件期望）。 | 🟡 |
 | **R7** | **Tail-Read before Edit**：追加前**优先 Read 末尾 200 行**或 `Grep '<!-- APPEND_HERE -->'` 定位尾部锚点；非首次 append 不全 Read。文件末尾维护 `<!-- APPEND_HERE -->` 锚点，Edit 时替换该锚点实现追加（新内容 + 新锚点）。 | 🟡 |
 | **R8** | **图像流控（20MB 单消息上限）**：按模型动态配额——**Sonnet/默认**：单消息 ≤ 5 张 PNG；**Opus 4.x (1M ctx)**：≤ 8 张/消息，累计 ≤ 30 张；**Haiku**：≤ 3 张。**模块级不设上限**，靠「读→写→释放→下一批」分多消息消化。累计未写入文件的 PNG 上下文超配额时，先写 Markdown 释放。 | 🔴 |
 | **R9** | **答疑循环必走，三种合法终态**：**A**(完成测验+无疑点) / **B**(用户跳过测验) / **C**(完成答疑循环)。三者都必须 COMMIT 写文件，用不同文案区分（见 Step C）。 | 🟡 |
 | **R10** | **"继续"≠跳过写文件**：用户说"继续/下一部分"时，先执行 COMMIT（写疑点+模块总结+更新进度），再询问是否开始下一模块。 | 🟡 |
 | **R11** | **推导无篇幅上限**：🧮 数理推导优先讲透胜过精简。每一步代数变换都要写出中间态（含"显然"的），禁止"容易看出/如上所述/略"跳步。**R11 优先级 > R8**——带宽不够就多分几批，不能砍内容。 | 🔴 |
-| **R12** | **完成后图像清理**：所有模块完成后，自动删除输出目录中未被 markdown 文件引用的中间 PNG 文件（pdftoppm 渲染产物）。保留 .md 中通过 `![]()` 显式引用的 diagram。 | 🟡 |
+| **R12** | **完成后清理未引用图片**：Phase 3 自检通过后，扫描输出目录中所有 `*.png`，对比 Markdown 中实际引用的图片路径，**删除未被引用的 PNG 文件**（pdftoppm 渲染产物、中间页截图等）。删除前列出待删文件清单并告知用户。 | 🟡 |
 
 **内容来源标签**：
 - `[原文]` PDF 原文（**文本或图像中可见**——看图获得的内容也属于原文）
@@ -145,7 +145,7 @@ Step 6   Write roadmap 到输出文件（文件末尾留 <!-- APPEND_HERE --> �
 4. **⚠️ 陷阱与辨析**：常见错误、易混淆点。
 5. **📊 模块总结表**：概念—内容—关键公式三列（标题必须带 📊 emoji，与自检一致）。
 
-最后别忘了在追加内容末尾留新的 `APPEND_HERE` 锚点。遵守 R3（视觉优先）、R5（嵌图限额）。
+最后别忘了在追加内容末尾留新的 `APPEND_HERE` 锚点。遵守 R3（视觉优先）、R5（关键图必须嵌入）。
 
 ### Step C — INTERACT + COMMIT
 
@@ -155,9 +155,19 @@ Step 6   Write roadmap 到输出文件（文件末尾留 <!-- APPEND_HERE --> �
 3. **迭代答疑**：每条疑点给完整推导，记录严重度（🔴 核心 / 🟡 补充）。循环直到用户说"没问题/继续"。
 
 **三种合法终态（R9）**：
-- **A 类**：用户完成测验且无疑点 → 疑难补充块写"📌 理解检测通过，本模块无疑点"
-- **B 类**：用户直接说"继续"跳过测验 → 写"📌 用户选择跳过测验（未采集盲区），🟡 建议复习时回补"
-- **C 类**：用户提出疑点并完成答疑 → 写完整疑点列表
+- **A 类**：用户完成测验且无疑点 → 疑难补充块写"📌 理解检测通过，本模块无疑点"，**并附测验反馈记录**（见下方格式）
+- **B 类**：用户直接说"继续"跳过测验 → 写"📌 用户选择跳���测验（未采集盲区），🟡 建议复习时回补"
+- **C 类**：用户提出疑点并完成答疑 → 写完整疑点列表，**并附测验反馈记录**（见下方格式）
+
+**测验反馈记录格式（R12，A/C 终态必写）**：
+```
+### 测验反馈记录
+- **Q1（原题）**：[完整题目文本，含所有已知条件]
+  → **答案**：[答案]（✅ 正确 / ❌ 用户答 XXX）
+- **Q2（原题）**：...
+  → **答案**：...
+```
+**必须先写完整原题再写答案**，不得只写答案省略题目。原题包含所有数值假设和问句。
 
 **写入文件（R9/R10 必走，无论哪种终态）**：
 4. Tail-Read（R7）定位 `APPEND_HERE`。
@@ -219,17 +229,18 @@ Step 6   Write roadmap 到输出文件（文件末尾留 <!-- APPEND_HERE --> �
 - [ ] 所有锚点 slug 有效
   evidence: `grep -oE '\(#[^)]+\)' output.md` 列出的链接都能匹配 `grep -oE '^#+ .+' output.md` 生成的 slug
 - [ ] 进度块 `status: complete`
-- [ ] 未被引用的中间 PNG 已清理（R12）
-  evidence: `ls *.png` 列出的 PNG 均被 `![...](...)` 引用；数量 == 保留的 diagram 数
+- [ ] 未引用 PNG 已清理（R12）
+  evidence: 列出目录中所有 `*.png`，对比 md 中 `![` 引用，差集为空
 ```
 
-任一未通过 → 修复后重检。
+4. **清理未引用图片（R12）**：
+   - 扫描输出目录中所有 `*.png` 文件
+   - 提取 Markdown 中所有 `![...](*.png)` 引用的文件名
+   - 计算差集（目录中存在但 Markdown 未引用的 PNG）
+   - 列出待删文件清单，告知用户将释放的磁盘空间
+   - 执行删除
 
-4. **图像清理（R12）**：删除输出目录中所有未被 markdown 文件引用的中间 PNG 文件：
-   - 提取输出 .md 中所有 `![...](*.png)` 引用，得到 `referenced_set`
-   - `Glob` 列出目录所有 `.png`
-   - 不在 `referenced_set` 中的 PNG 一律删除（这些是 `pdftoppm` 的中间渲染产物，信息已写入 Markdown）
-   - 输出清理摘要：`rm -rf {N} unreferenced PNGs, retained {M} diagram(s)`
+任一未通过 → 修复后重检。
 
 ---
 
@@ -317,9 +328,15 @@ $$ ... $$
 ## 📌 模块 1 疑难补充
 
 <!-- 按终态 A/B/C 择一 -->
-<!-- A: 📌 理解检测通过，本模块无疑点 -->
+<!-- A: 📌 理解检测通过，本模块无疑点（附测验反馈记录） -->
 <!-- B: 📌 用户选择跳过测验（未采集盲区），🟡 建议复习时回补 -->
-<!-- C: 下列疑点清单 -->
+<!-- C: 下列疑点清单（附测验反馈记录） -->
+
+### 测验反馈记录
+- **Q1（原题）**：[完整题目文本，含所有已知条件和问句]
+  → **答案**：[答案]（✅ 正确 / ❌ 用户答 XXX）
+- **Q2（原题）**：...
+  → **答案**：...
 
 ### 疑点 1（🔴 核心）：[问题摘要]
 **问题**：...
@@ -388,8 +405,7 @@ $$ ... $$
   └─ Phase 3
       ├─ 追加总结章节
       ├─ 更新进度 complete
-      ├─ 执行自检清单（每项附 evidence 命令）
-      └─ 图像清理：rm -rf unreferenced PNGs（R12）
+      └─ 执行自检清单（每项附 evidence 命令）
 ```
 
 ---
@@ -402,7 +418,7 @@ $$ ... $$
 2. 追加通过替换 APPEND_HERE 锚点，不是手动找末尾（R7）
 3. "继续" 时先写文件再进下一模块（R10）
 4. 检查 LaTeX `\|` 转义（R6）
-5. 嵌入图像前确认是 diagram，按 `mod{N}_fig{i}.png` 命名（R5）
+5. 关键 diagram 必须嵌入，按 `mod{N}_fig{i}.png` 命名，不设每模块上限（R5）
 6. Image reads 按模型配额；长模块走分批循环（R8）
 7. 所有输出在同一文件夹，Phase 1 `mkdir -p` 开头（R4）
 8. 🧮 推导不跳步、不省略中间态（R11 > R8）
@@ -410,4 +426,4 @@ $$ ... $$
 10. 记号不清晰时标 `[原文]?` 问用户，不猜（R2）
 11. 会话恢复做 MODULE_SUMMARY ↔ 进度块一致性检查（Step A.1）
 12. 自检清单每项附 evidence 命令，不只打勾（Phase 3）
-13. Phase 3 完成后执行图像清理，只保留 .md 引用的 PNG，其余删除（R12）
+13. Phase 3 完成后清理未引用 PNG，释放磁盘空间（R12）
